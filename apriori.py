@@ -119,86 +119,89 @@ def caculate_item(all_items,min):
     items_dict = {key:val for key,val in items_dict.items() if val >= min}
     return items_dict
 
-# 創建樹
-def create_tree(all_items,items_dict):
-    inittree = FP_Node('Null', None)
-    inittree.num = 0
-    # 存取每一筆購買的項目，並按照所有交易中，每個項目被購買的數量大小排序，由多至少
-    items_sort = []
-    # 為了要把每一筆購買的項目按照所有交易中，每個項目被購買的數量大小排序，由多至少
-    for items in all_items:
-        sort_all_items = {}
-        for item in items:
-            if item in items_dict:
-                sort_all_items[item] = items_dict[item]
-        has_sorted = [w[0] for w in sorted(sort_all_items.items(), key = lambda k: (k[1],k[0]),reverse = True)]
-        if has_sorted != []:
-            items_sort.append(has_sorted)
-    
-    for has_sorted in items_sort:
-        pdict = {}
-        update_tree(has_sorted,inittree,items_dict,pdict)
-    return inittree
+def create_l1(items_dict,level):
+    l_list = []
+    for key,val in items_dict.items():
+        l_list.append(key)
+    l_list = list(itertools.combinations(l_list,level))
+    return l_list
 
-def update_tree(has_sorted,inittree,items_dict,pdict):
-    # 如果每筆資料中，在所有交易中被購買最多的，沒有在父節點就要加進去樹中
-    if has_sorted[0] not in inittree.child:
-        inittree.child[has_sorted[0]] = FP_Node(has_sorted[0],inittree)
-        pdict[inittree.child[has_sorted[0]].item] = 0
-        for i in pdict:
-            inittree.child[has_sorted[0]].parent_dict(i)
-    # 如果每筆資料中，在所有交易中被購買最多的，有在父的節點就要 + num       
-    else:
-        inittree.child[has_sorted[0]].num += 1
-        pdict[inittree.child[has_sorted[0]].item] = 0
-    # 如果一筆交易中，有兩個以上的交易，就按照上述方法做
-    if len(has_sorted) > 1:
-        update_tree(has_sorted[1::],inittree.child[has_sorted[0]],items_dict,pdict)
+def create_l2(items_dict,delete_list,level):
+    end = 0
+    l_list = []
+    for key,val in items_dict.items():
+        for i in key:
+            if i not in l_list:
+                l_list.append(i)
+    l_list = list(itertools.combinations(l_list,level))
+    l_list2=[]
+    for it in l_list:
+        it_list = []
+        for i in it:
+            it_list.append(i)
+        it_set = set(it_list)
+        num = 0
+        for dit in delete_list:
+            set_dit = set(dit)
+            if set_dit.issubset(it_set):
+                num = 1
+        if num == 0:
+            l_list2.append(it)
+    if len(l_list2)==0:
+        end = 1
+    return l_list2,end,items_dict
+
+def caculate_l1(all_items,items_dict,l_list,min_):
+    end = 0
+    element_dict = defaultdict(lambda: 0)
+    delete_list = []
+    for it in l_list:
+        it_list = []
+        for i in it:
+            it_list.append(i)
+        it_set = set(it_list)
+        num = 0
+        for items in all_items:
+            set_items = set(items)
+            if it_set.issubset(set_items):
+                num += 1
+        if num >= min_:
+             element_dict[it] = num
+        else:
+           delete_list.append(it_list) 
+    if len(element_dict.keys())==0:
+        end = 1
+        element_dict = items_dict
+    return element_dict, delete_list, end
+            
+def caculate_l2(all_items,items_dict,l_list,min_):
+    end = 0
+    element_dict = defaultdict(lambda: 0)
+    delete_list = []
+    for it in l_list:
+        it_list = []
+        for i in it:
+            it_list.append(i)
+        it_set = set(it_list)
+        num = 0
+        for items in all_items:
+            set_items = set(items)
+            if it_set.issubset(set_items):
+                num += 1
+        if num >= min_:
+             element_dict[it] = num
+        else:
+           delete_list.append(it_list) 
+    if len(element_dict.keys())==0:
+        end = 1
+        element_dict = items_dict
+    return element_dict, delete_list, end
 
 def PowerSetsRecursive(items):
     result = [[]]
     for x in items:
         result.extend([subset + [x] for subset in result])
     return result
-
-def dictset(items,i,pdict,val):
-    list_set = []
-    list_set.extend(i)
-    itemdict = {}
-    num = val
-    for li in range(len(list_set)):
-        if num > pdict[list_set[li]]:
-            num = pdict[list_set[li]]
-    list_set.append(items)
-    itemdict[frozenset(list_set)] = num
-    return itemdict
-
-def mergedict(x,y):
-    for key,val in y.items():
-        if key in x.keys():
-            x[key] += val
-        else:
-            x[key] = val
-    return x
-# 挖掘頻繁項目
-def mine_tree(inittree,items_dict,num,number):
-    itemsort = [w[0] for w in sorted(items_dict.items(), key = lambda k: (k[1],k[0]),reverse = True)]
-    total = 0
-    for item in itemsort:
-        itemdict = {}
-        plist = []
-        plist = inittree.search(item,plist)
-        for pdict in plist:
-            if pdict != {}:
-                val = pdict[item]
-                pdict.pop(item)
-                for i in PowerSetsRecursive(pdict.keys()):
-                    itemdict = mergedict(itemdict,dictset(item,i,pdict,val))
-        itemdict = {key:val for key,val in itemdict.items() if val >= num}
-        for key,val in itemdict.items():
-            print('%s %.5f' % (set(key),val/number*100))
-            total += 1
-    return total
 
 all_items,number = load("IBM-Quest-Data-Generator.exe/data.ntrans_0.1.nitems_0.1.1",99)
 #all_items,number = load("IBM-Quest-Data-Generator.exe/data.ntrans_0.1.nitems_1",99)
@@ -214,17 +217,32 @@ for i in range(1,11):
     print("min_sup",min_sup)
     tStart = time.time()
     items_dict = caculate_item(all_items,min_sup*number)
-    inittree = create_tree(all_items,items_dict)
-    total = mine_tree(inittree,items_dict,min_sup*number,number)
+    level_list=[]
+    level_list.append(items_dict)
+    l_ = create_l1(items_dict,2)
+    items_dict,delete_list,end = caculate_l1(all_items,items_dict,l_,min_sup*number)
+    level = 3
+    if(end==0):
+        level_list.append(items_dict)
+    while(end==0):
+        l_,end,items_dict = create_l2(items_dict,delete_list,level)
+        if end == 0:
+            items_dict,delete_list,end = caculate_l2(all_items,items_dict,l_,min_sup*number)
+        level += 1
+        if end == 0:
+            level_list.append(items_dict)
     tEnd = time.time()#計時結束
+    for a in range(len(level_list)):
+        print(a+1,": ",len(level_list[a]))
+    print('items_dict',level_list)
     print ("花了 %f 秒" % (tEnd - tStart))
-    print("有 %d 筆" % total)
+    #print("有 %d 筆" % total)
     t1[i-1]=(tEnd - tStart)
     x1[i-1]= i * 2 + 3
 plt.plot(x1,t1) 
 plt.xlabel("min_sup(%)") 
 plt.ylabel("time") 
-plt.title("fp-growth") 
+plt.title("apriori") 
 plt.show()
 
 #print(inittree.print_tree())
